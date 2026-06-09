@@ -2348,7 +2348,7 @@
             hasFailed = true;
             window.activeAudio = null;
             fallback();
-          } else {
+          } else if (!hasFailed) {
             stopAllSpeech();
           }
         };
@@ -2360,7 +2360,7 @@
             hasFailed = true;
             window.activeAudio = null;
             fallback();
-          } else {
+          } else if (!hasFailed) {
             stopAllSpeech();
           }
         });
