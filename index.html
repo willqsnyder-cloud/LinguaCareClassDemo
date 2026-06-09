@@ -2380,15 +2380,30 @@
       window.speechSynthesis.cancel();
       window.speechSynthesis.resume();
       
-      const utterance = new SpeechSynthesisUtterance(plainText);
-      window.activeUtterance = utterance; // Keep reference to prevent GC
+      // Split text into sentences/chunks (to prevent Chrome's 15-second cutoff bug)
+      const chunks = [];
+      const sentences = plainText.match(/[^.!?]+[.!?]*/g) || [plainText];
       
-      // Configure basic parameters
-      utterance.volume = 1;
-      utterance.rate = 1;
-      utterance.pitch = 1;
+      let currentChunk = "";
+      sentences.forEach(sentence => {
+        if ((currentChunk + sentence).length > 150) {
+          if (currentChunk) chunks.push(currentChunk.trim());
+          currentChunk = sentence;
+        } else {
+          currentChunk += sentence;
+        }
+      });
+      if (currentChunk) chunks.push(currentChunk.trim());
       
-      // Find matching voices
+      if (chunks.length === 0) {
+        log("Local speech aborted: No text found to speak.", "warning");
+        stopAllSpeech();
+        return;
+      }
+      
+      let currentIdx = 0;
+      
+      // Look up voice once
       const voices = window.speechSynthesis.getVoices();
       let matchedVoice = voices.find(v => v.lang.toLowerCase() === langCode.toLowerCase());
       if (!matchedVoice) {
@@ -2399,28 +2414,56 @@
         matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith(shortCode));
       }
       
-      if (matchedVoice) {
-        utterance.voice = matchedVoice;
-        log(`Using local speech voice: ${matchedVoice.name} (${matchedVoice.lang})`, 'system');
-      } else {
-        utterance.lang = langCode;
-        log(`Using default local speech engine matching code: ${langCode}`, 'system');
+      function playNext() {
+        if (state.currentlyPlayingLang !== lang) return; // stopped or switched
+        
+        if (currentIdx >= chunks.length) {
+          log(`Local speech synthesis completed.`, 'system');
+          stopAllSpeech();
+          return;
+        }
+        
+        const chunkText = chunks[currentIdx];
+        const utterance = new SpeechSynthesisUtterance(chunkText);
+        window.activeUtterance = utterance; // Keep reference to prevent GC
+        
+        utterance.volume = 1;
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        
+        if (matchedVoice) {
+          utterance.voice = matchedVoice;
+          if (currentIdx === 0) {
+            log(`Using local speech voice: ${matchedVoice.name} (${matchedVoice.lang})`, 'system');
+          }
+        } else {
+          utterance.lang = langCode;
+          if (currentIdx === 0) {
+            log(`Using default local speech engine matching code: ${langCode}`, 'system');
+          }
+        }
+        
+        utterance.onstart = () => {
+          log(`Local speech playing sentence ${currentIdx + 1}/${chunks.length}...`, 'system');
+        };
+        
+        utterance.onend = () => {
+          if (state.currentlyPlayingLang !== lang) return;
+          currentIdx++;
+          playNext();
+        };
+        
+        utterance.onerror = (e) => {
+          if (state.currentlyPlayingLang !== lang) return;
+          log(`Local speech synthesis error: ${e.error}`, 'error');
+          stopAllSpeech();
+        };
+        
+        window.speechSynthesis.speak(utterance);
+        log(`Local speech queued for ${lang} translation content.`, 'system');
       }
       
-      utterance.onstart = () => {
-        log(`Local speech synthesis started for ${lang} translation.`, 'system');
-      };
-      utterance.onend = () => {
-        log(`Local speech synthesis completed for ${lang} translation.`, 'system');
-        stopAllSpeech();
-      };
-      utterance.onerror = (e) => {
-        log(`Local speech synthesis error: ${e.error}`, 'error');
-        stopAllSpeech();
-      };
-      
-      window.speechSynthesis.speak(utterance);
-      log(`Local speech queued for ${lang} translation content.`, 'system');
+      playNext();
     }
 
     // Quick-demo triggers
