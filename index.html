@@ -2459,7 +2459,11 @@
           stopAllSpeech();
         };
         
-        window.speechSynthesis.speak(utterance);
+        setTimeout(() => {
+          if (state.currentlyPlayingLang !== lang) return;
+          window.speechSynthesis.resume();
+          window.speechSynthesis.speak(utterance);
+        }, 100);
         log(`Local speech queued for ${lang} translation content.`, 'system');
       }
       
