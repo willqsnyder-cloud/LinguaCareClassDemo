@@ -2255,12 +2255,23 @@
       
       log(`Initiating voice synthesis for ${lang} (${langCode})...`, 'system');
       
-      // Step 1: Attempt Online Google TTS (100% reliable, high quality, independent of OS language packs)
-      playOnlineTTS(plainText, langCode.substring(0, 2), () => {
-        // Step 2: Fallback to local Web Speech API if Google TTS is blocked or offline
-        log(`Online TTS playback timed out or failed. Falling back to local Web Speech synthesis...`, 'warning');
+      const isLocalhost = window.location.hostname.includes('localhost') || 
+                          window.location.hostname.includes('127.0.0.1') || 
+                          window.location.port === '8000' || 
+                          window.location.port === '8080';
+      
+      if (isLocalhost) {
+        // Step 1: Attempt Online Google TTS (100% reliable, high quality, routes through local proxy)
+        playOnlineTTS(plainText, langCode.substring(0, 2), () => {
+          // Step 2: Fallback to local Web Speech API if Google TTS is blocked or offline
+          log(`Online TTS playback timed out or failed. Falling back to local Web Speech synthesis...`, 'warning');
+          playLocalSpeech(plainText, langCode, lang);
+        });
+      } else {
+        // Direct local synthesis when running from GitHub Pages or file:// to avoid referrer blocks
+        log(`Running from non-localhost origin. Bypassing online TTS proxy and using local Web Speech API directly...`, 'system');
         playLocalSpeech(plainText, langCode, lang);
-      });
+      }
     }
 
     // Play TTS using Google's online translation engine
