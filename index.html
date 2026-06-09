@@ -2083,7 +2083,6 @@
             deeplUrl = `${window.location.origin}/api/translate`;
           } else if (state.proxyType !== 'none') {
             // Fallback for file:// protocol - try public corsproxy.io.
-            log('Running from non-localhost origin. Public proxies may block custom Authorization headers. If translations fail, please use the local web server.', 'warning');
             deeplUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(deeplUrl);
           }
           
@@ -2124,6 +2123,15 @@
           
         } catch (err) {
           log(`[${t.code}] Translation failed: ${err.message}`, 'error');
+          
+          const isLocalhost = window.location.hostname.includes('localhost') || 
+                              window.location.hostname.includes('127.0.0.1') || 
+                              window.location.port === '8000' || 
+                              window.location.port === '8080';
+          if (!isLocalhost && state.proxyType !== 'none') {
+            log('Tip: Running from non-localhost origin. Public proxies may block custom Authorization headers. If translations fail, please use a local web server (start_server.ps1).', 'warning');
+          }
+          
           let displayError = err.message;
           if (state.proxyType === 'none' && err.message.toLowerCase().includes('fetch')) {
             displayError = 'CORS restrictions blocked direct client-side API call. Enable CORS Proxy in Settings.';
